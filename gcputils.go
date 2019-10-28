@@ -51,7 +51,7 @@ func GetEnvVar(name, def string) string {
 // automatically get credentials when running on GCP.
 func CredentialsOptionsFromEnv() ([]option.ClientOption, error) {
 	opts := []option.ClientOption{}
-	serviceAccountEncoded := os.Getenv("GOOGLE_ACCOUNT") // base64 encoded json creds
+	serviceAccountEncoded := GetEnvVar("GOOGLE_ACCOUNT") // base64 encoded json creds
 	if serviceAccountEncoded != "" {
 		serviceAccountJSON, err := base64.StdEncoding.DecodeString(serviceAccountEncoded)
 		if err != nil {
