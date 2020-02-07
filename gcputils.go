@@ -44,14 +44,15 @@ func GetEnvVar(name, def string) string {
 	return e
 }
 
-// CredentialsOptionsFromEnv this will check an environment var call GOOGLE_ACCOUNT which can contain
+// CredentialsOptionsFromEnv this will check an environment var with key you provide, which should contain
 // your JSON credentials base64 encoded.
 // Run `base64 -w 0 account.json` to create this value.
+// This also supports running on GCP, just don't set this environment variable or metadata on GCP.
 // This will not error if it doesn't exist, so you can use this locally and let Google
 // automatically get credentials when running on GCP.
-func CredentialsOptionsFromEnv() ([]option.ClientOption, error) {
+func CredentialsOptionsFromEnv(envKey string) ([]option.ClientOption, error) {
 	opts := []option.ClientOption{}
-	serviceAccountEncoded := GetEnvVar("GOOGLE_ACCOUNT") // base64 encoded json creds
+	serviceAccountEncoded := GetEnvVar(envKey) // base64 encoded json creds
 	if serviceAccountEncoded != "" {
 		serviceAccountJSON, err := base64.StdEncoding.DecodeString(serviceAccountEncoded)
 		if err != nil {
@@ -61,3 +62,4 @@ func CredentialsOptionsFromEnv() ([]option.ClientOption, error) {
 	}
 	return opts, nil
 }
+
