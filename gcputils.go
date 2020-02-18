@@ -66,9 +66,10 @@ func CredentialsAndProjectIDFromEnv(gKeyEnvVarName, projectIDEnvVarName string) 
 	if metadata.OnGCE() {
 		gProjectID2, err := metadata.ProjectID()
 		if err != nil {
-			fmt.Println("gprojectID2 error:", err)
+			fmt.Println("Error getting project ID from GCP metadata:", err)
+			return nil, "", err
 		}
-		fmt.Println("PROJECT_ID FROM METADATA: ", gProjectID2)
+		// fmt.Println("PROJECT_ID FROM GCP METADATA: ", gProjectID2)
 		return opts, gProjectID2, nil
 	}
 	// and lastly from JSON
@@ -105,17 +106,17 @@ func KeyAndOptionsFromEnv(envKey string) (*GoogleJSON, []option.ClientOption, er
 	opts := []option.ClientOption{}
 	serviceAccountEncoded := GetEnvVar(envKey, "x") // base64 encoded json creds
 	if serviceAccountEncoded == "x" {
-		return nil, opts, nil
+		return nil, opts, fmt.Errorf("env var %v not found", envKey)
 	}
 	serviceAccountJSON, err := base64.StdEncoding.DecodeString(serviceAccountEncoded)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Google credentials not properly base64 encoded: %v", err)
 	}
 	opts = append(opts, option.WithCredentialsJSON(serviceAccountJSON))
 	gj := &GoogleJSON{}
 	err = json.Unmarshal(serviceAccountJSON, gj)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Google credentials could not be parsed: %v", err)
 	}
 	return gj, opts, nil
 }
