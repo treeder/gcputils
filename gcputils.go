@@ -55,7 +55,7 @@ func GetEnvVar(name, def string) string {
 // gKeyEnvVarName is required only if not running on GCP compute
 // projectIDEnvVarName is optional
 func CredentialsAndProjectIDFromEnv(gKeyEnvVarName, projectIDEnvVarName string) ([]option.ClientOption, string, error) {
-	gj, opts, err := KeyAndOptionsFromEnv(gKeyEnvVarName)
+	gj, opts, err := AccountAndCredentialsFromEnv(gKeyEnvVarName)
 	if err != nil {
 		return nil, "", err
 	}
@@ -96,16 +96,19 @@ func CredentialsOptionsFromEnv(envKey string) ([]option.ClientOption, error) {
 	return opts, nil
 }
 
-// CredentialsAndOptionsFromEnv this will check an environment var with key you provide, which should contain
+// KeyAndOptionsFromEnv this will check an environment var with key you provide, which should contain
 // your JSON credentials base64 encoded. Can passed returned value directly into clients.
 // Run `base64 -w 0 account.json` to create this value.
 // This also supports running on GCP, just don't set this environment variable or metadata on GCP.
 // This will not error if it doesn't exist, so you can use this locally and let Google
 // automatically get credentials when running on GCP.
-func KeyAndOptionsFromEnv(envKey string) (*GoogleJSON, []option.ClientOption, error) {
+func AccountAndCredentialsFromEnv(envKey string) (*GoogleJSON, []option.ClientOption, error) {
 	opts := []option.ClientOption{}
 	serviceAccountEncoded := GetEnvVar(envKey, "x") // base64 encoded json creds
 	if serviceAccountEncoded == "x" {
+		if metadata.OnGCE() {
+			return nil, opts, nil
+		}
 		return nil, opts, fmt.Errorf("env var %v not found", envKey)
 	}
 	serviceAccountJSON, err := base64.StdEncoding.DecodeString(serviceAccountEncoded)
@@ -123,5 +126,7 @@ func KeyAndOptionsFromEnv(envKey string) (*GoogleJSON, []option.ClientOption, er
 
 // GoogleJSON is the struct you get when you create a new service account
 type GoogleJSON struct {
-	ProjectID string `json:"project_id"`
+	ProjectID   string `json:"project_id"`
+	Type        string `json:"type"`
+	ClientEmail string `json:"client_email"`
 }
