@@ -232,7 +232,6 @@ func takeStacktrace() string {
 			buffer.WriteRune('\n')
 		}
 		i++
-		fmt.Println(frame.Entry)
 		buffer.WriteString(frame.Function)
 		buffer.WriteRune('(')
 		buffer.WriteString(fmt.Sprintf("%v", frame.PC))
