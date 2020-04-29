@@ -219,6 +219,7 @@ func print(line *line, message, suffix string) {
 
 func takeStacktrace() string {
 	buffer := bytes.Buffer{}
+	buffer.WriteString("goroutine 1 [running]:\n")
 	pc := make([]uintptr, 25)
 	_ = runtime.Callers(2, pc)
 	i := 0
@@ -227,12 +228,15 @@ func takeStacktrace() string {
 		if shouldSkip(frame.Function) {
 			continue
 		}
-
 		if i != 0 {
-			buffer.WriteByte('\n')
+			buffer.WriteRune('\n')
 		}
 		i++
+		fmt.Println(frame.Entry)
 		buffer.WriteString(frame.Function)
+		buffer.WriteRune('(')
+		buffer.WriteString(fmt.Sprintf("%v", frame.PC))
+		buffer.WriteRune(')')
 		buffer.WriteRune('\n')
 		buffer.WriteRune('\t')
 		buffer.WriteString(frame.File)
@@ -243,7 +247,7 @@ func takeStacktrace() string {
 }
 
 func shouldSkip(s string) bool {
-	fmt.Println("should skip: ", s)
+	// fmt.Println("should skip: ", s)
 	if strings.HasPrefix(s, "github.com/treeder/gcputils") {
 		return true
 	}
