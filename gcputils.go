@@ -46,6 +46,7 @@ func GetEnvVar(name, def string) string {
 	return e
 }
 
+// CredentialsAndProjectIDFromEnv returns ClientOption's with credentials filled in and the project ID
 // ProjectID returns the project ID by looking in several places in the following order of preference:
 // * env var passed in via envVarName
 // * set in GCE metadata with matching name to envVarName (user defined)
