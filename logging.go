@@ -1,6 +1,7 @@
 package gcputils
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,8 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/errorreporting"
@@ -105,9 +108,10 @@ type Printer interface {
 
 // Fielder methods for adding structured fields
 type Fielder interface {
-	AddField(string, interface{}) Line
+	F(string, interface{}) Line
 }
 
+// Line is the main interface returned from most functions, has Fielder and Printer
 type Line interface {
 	Fielder
 	Printer
@@ -126,16 +130,20 @@ func (l *line) AddField(key string, value interface{}) Line {
 	return l
 }
 
+func (l *line) F(key string, value interface{}) Line {
+	return l.AddField(key, value)
+}
+
 // Printf prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Printf.
 func (l *line) Printf(format string, v ...interface{}) {
-	print(l.sev, fmt.Sprintf(format, v...))
+	print(l, fmt.Sprintf(format, v...), "")
 }
 
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l.sev, fmt.Sprintln(v...))
+	print(l, fmt.Sprint(v...), "\n")
 }
 
 func P(sev string) Line {
@@ -148,15 +156,18 @@ func Error() Line {
 	return &line{sev: logging.Error}
 }
 
-func print(sev logging.Severity, message string) {
-	msg := message
+func print(line *line, message, suffix string) {
+	sev := line.sev
 	// sev := logging.ParseSeverity(severity)
+	stack := ""
 	if sev >= logging.Error {
-		buf := make([]byte, 1<<16) // 65536 - seems kinda big?
-		i := runtime.Stack(buf, false)
-		msg = msg + "\n" + string(buf[0:i])
+		// buf := make([]byte, 1<<16) // 65536 - seems kinda big?
+		// i := runtime.Stack(buf, false)
+		// stack = string(buf[0:i])
+		stack = takeStacktrace()
 	}
 	if onGCE {
+		msg := message + "\n" + stack
 		if onCloudRun {
 			// this will automatically make an error in error reporting
 			std.Println(Entry{
@@ -164,14 +175,21 @@ func print(sev logging.Severity, message string) {
 				Message:   msg,
 				Component: component,
 				// Trace:     trace, // see https://cloud.google.com/run/docs/logging#writing_structured_logs
+				Fields: line.fields,
 			})
 			return
 		}
 		// regular GCE, so using the APIs
+		payload := map[string]interface{}{"message": msg}
+		if line.fields != nil {
+			for k, v := range line.fields {
+				payload[k] = v
+			}
+		}
 		clients.logger.Log(logging.Entry{
 			Severity: sev,
 			// Payload:  "something terrible happened!",
-			Payload: map[string]interface{}{"message": msg},
+			Payload: payload,
 		})
 		// lg.Flush()
 		if sev >= logging.Error {
@@ -185,8 +203,54 @@ func print(sev logging.Severity, message string) {
 		return
 	}
 	// now just regular console
-	fmt.Println(msg)
+	// add fields to msg
+	msg := "\t" + strings.ToUpper(sev.String()) + "\t" + message
+	if line.fields != nil {
+		// msg += "\n"
+		for k, v := range line.fields {
+			msg += fmt.Sprintf(" [%v=%v]", k, v)
+		}
+	}
+	msg += "\n"
+	msg += stack
+	msg += suffix
+	log.Println(msg)
 }
+
+func takeStacktrace() string {
+	buffer := bytes.Buffer{}
+	pc := make([]uintptr, 25)
+	_ = runtime.Callers(2, pc)
+	i := 0
+	frames := runtime.CallersFrames(pc)
+	for frame, more := frames.Next(); more; frame, more = frames.Next() {
+		if shouldSkip(frame.Function) {
+			continue
+		}
+
+		if i != 0 {
+			buffer.WriteByte('\n')
+		}
+		i++
+		buffer.WriteString(frame.Function)
+		buffer.WriteRune('\n')
+		buffer.WriteRune('\t')
+		buffer.WriteString(frame.File)
+		buffer.WriteRune(':')
+		buffer.WriteString(strconv.Itoa(frame.Line))
+	}
+	return buffer.String()
+}
+
+func shouldSkip(s string) bool {
+	fmt.Println("should skip: ", s)
+	if strings.HasPrefix(s, "github.com/treeder/gcputils") {
+		return true
+	}
+	return false
+}
+
+type arbFields map[string]interface{}
 
 // Entry defines a log entry.
 type Entry struct {
@@ -196,6 +260,25 @@ type Entry struct {
 
 	// Stackdriver Log Viewer allows filtering and display of this as `jsonPayload.component`.
 	Component string `json:"component,omitempty"`
+
+	Fields map[string]interface{}
+}
+
+// added this so we could add arbitrary fields too
+func (e Entry) flatten(m map[string]interface{}) {
+	m["message"] = e.Message
+	m["severity"] = e.Severity
+	if e.Trace != "" {
+		m["logging.googleapis.com/trace"] = e.Trace
+	}
+	if e.Component != "" {
+		m["component"] = e.Component
+	}
+	if e.Fields != nil {
+		for k, v := range e.Fields {
+			m[k] = v
+		}
+	}
 }
 
 // String renders an entry structure to the JSON format expected by Stackdriver.
@@ -203,7 +286,9 @@ func (e Entry) String() string {
 	if e.Severity == "" {
 		e.Severity = "INFO"
 	}
-	out, err := json.Marshal(e)
+	m := map[string]interface{}{}
+	e.flatten(m)
+	out, err := json.Marshal(m)
 	if err != nil {
 		log.Printf("json.Marshal: %v", err)
 	}

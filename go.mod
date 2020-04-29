@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	cloud.google.com/go v0.56.0
+	cloud.google.com/go/logging v1.0.0
 	github.com/golang/protobuf v1.4.0 // indirect
 	golang.org/x/net v0.0.0-20200425230154-ff2c4b7c35a0 // indirect
 	golang.org/x/sys v0.0.0-20200427175716-29b57079015a // indirect
