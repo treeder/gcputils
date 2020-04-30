@@ -180,12 +180,18 @@ func print(line *line, message, suffix string) {
 			return
 		}
 		// regular GCE, so using the APIs
+		if clients.logger == nil {
+			// InitLogging wasn't called, so printing to console
+			toConsole(line, message, stack, suffix)
+			return
+		}
 		payload := map[string]interface{}{"message": msg}
 		if line.fields != nil {
 			for k, v := range line.fields {
 				payload[k] = v
 			}
 		}
+
 		clients.logger.Log(logging.Entry{
 			Severity: sev,
 			// Payload:  "something terrible happened!",
@@ -203,8 +209,12 @@ func print(line *line, message, suffix string) {
 		return
 	}
 	// now just regular console
+	toConsole(line, message, stack, suffix)
+}
+
+func toConsole(line *line, message, stack, suffix string) {
 	// add fields to msg
-	msg := "\t" + strings.ToUpper(sev.String()) + "\t" + message
+	msg := "\t" + strings.ToUpper(line.sev.String()) + "\t" + message
 	if line.fields != nil {
 		// msg += "\n"
 		for k, v := range line.fields {
