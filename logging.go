@@ -44,8 +44,8 @@ func init() {
 		// s, _ = metadata.Zone()
 		// fmt.Printf("InstanceZone: %+v\n", s)
 		// From what I can see, instanceID will be empty if on cloud run
-		s, _ = metadata.InstanceID()
-		fmts == "" {
+		s, _ := metadata.InstanceID()
+		if s == "" {
 			onCloudRun = true
 		}
 	}
