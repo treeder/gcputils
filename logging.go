@@ -182,6 +182,7 @@ func print(line *line, message, suffix string) {
 		// regular GCE, so using the APIs
 		if clients.logger == nil {
 			// InitLogging wasn't called, so printing to console
+			// todo: Maybe print a message that user should call InitLogging?
 			toConsole(line, message, stack, suffix)
 			return
 		}
