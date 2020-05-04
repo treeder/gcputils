@@ -27,6 +27,23 @@ var (
 	clients    *clientWrapper
 )
 
+// Printer common interface
+type Printer interface {
+	Println(v ...interface{})
+	Printf(format string, v ...interface{})
+}
+
+// Fielder methods for adding structured fields
+type Fielder interface {
+	F(string, interface{}) Line
+}
+
+// Line is the main interface returned from most functions, has Fielder and Printer
+type Line interface {
+	Fielder
+	Printer
+}
+
 func init() {
 	// no prefix, no timestamp
 	std = log.New(os.Stderr, "", 0)
@@ -99,23 +116,6 @@ func SetComponent(s string) {
 	component = s
 }
 
-// Printer common interface
-type Printer interface {
-	Println(v ...interface{})
-	Printf(format string, v ...interface{})
-}
-
-// Fielder methods for adding structured fields
-type Fielder interface {
-	F(string, interface{}) Line
-}
-
-// Line is the main interface returned from most functions, has Fielder and Printer
-type Line interface {
-	Fielder
-	Printer
-}
-
 type line struct {
 	sev    logging.Severity
 	fields map[string]interface{}
@@ -142,7 +142,7 @@ func (l *line) Printf(format string, v ...interface{}) {
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l, fmt.Sprint(v...), "\n")
+	print(l, fmt.Sprintln(v...), "\n")
 }
 
 func P(sev string) Line {
