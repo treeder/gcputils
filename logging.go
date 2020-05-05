@@ -38,10 +38,16 @@ type Fielder interface {
 	F(string, interface{}) Line
 }
 
+type Leveler interface {
+	Info() Line
+	Error() Line
+}
+
 // Line is the main interface returned from most functions, has Fielder and Printer
 type Line interface {
 	Fielder
 	Printer
+	Leveler
 }
 
 func init() {
@@ -142,7 +148,15 @@ func (l *line) Printf(format string, v ...interface{}) {
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l, fmt.Sprintln(v...), "\n")
+	print(l, fmt.Sprint(v...), "\n")
+}
+func (l *line) Info() Line {
+	l.sev = logging.Info
+	return l
+}
+func (l *line) Error() Line {
+	l.sev = logging.Error
+	return l
 }
 
 func P(sev string) Line {
@@ -153,6 +167,19 @@ func Info() Line {
 }
 func Error() Line {
 	return &line{sev: logging.Error}
+}
+
+func F(key string, value interface{}) Line {
+	l := &line{sev: logging.Info}
+	return l.AddField(key, value)
+}
+func Println(v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Println(v...)
+}
+func Printf(format string, v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Printf(format, v...)
 }
 
 func print(line *line, message, suffix string) {
