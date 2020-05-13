@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -35,15 +36,25 @@ type Printer interface {
 
 // Fielder methods for adding structured fields
 type Fielder interface {
+	// F adds structured key/value pairs which will show up nicely in Cloud Logging.
+	// Typically use this on the same line as your Printx()
 	F(string, interface{}) Line
+	// With clones (unlike F), then adds structured key/value pairs which will show up nicely in Cloud Logging.
+	// Use this one if you plan on passing this along to other functions or setting global fields.
+	With(string, interface{}) Line
 }
 
+// Leveler methods to set levels on loggers
 type Leveler interface {
+	// Debug returns a new logger with Debug severity
+	Debug() Line
+	// Info returns a new logger with INFO severity
 	Info() Line
+	// Error returns a new logger with ERROR severity
 	Error() Line
 }
 
-// Line is the main interface returned from most functions, has Fielder and Printer
+// Line is the main interface returned from most functions
 type Line interface {
 	Fielder
 	Printer
@@ -78,6 +89,7 @@ func init() {
 // Not required if using cloud run.
 // Call defer x.Close() on the returned closer to ensure logs get flushed.
 func InitLogging(ctx context.Context, projectID string, opts []option.ClientOption) (io.Closer, error) {
+	clients.projectID = projectID
 	var err error
 	if onGCE {
 		if !onCloudRun {
@@ -102,6 +114,7 @@ func InitLogging(ctx context.Context, projectID string, opts []option.ClientOpti
 }
 
 type clientWrapper struct {
+	projectID   string
 	logClient   *logging.Client
 	logger      *logging.Logger
 	errorClient *errorreporting.Client
@@ -125,9 +138,12 @@ func SetComponent(s string) {
 type line struct {
 	sev    logging.Severity
 	fields map[string]interface{}
+	trace  string
 }
 
-func (l *line) AddField(key string, value interface{}) Line {
+// F adds structured key/value pairs which will show up nicely in Cloud Logging.
+// Typically use this on the same line as your Printx()
+func (l *line) F(key string, value interface{}) Line {
 	if l.fields == nil {
 		l.fields = map[string]interface{}{}
 	}
@@ -135,8 +151,21 @@ func (l *line) AddField(key string, value interface{}) Line {
 	return l
 }
 
-func (l *line) F(key string, value interface{}) Line {
-	return l.AddField(key, value)
+// With clones (unlike F), then adds structured key/value pairs which will show up nicely in Cloud Logging.
+// Use this one if you plan on passing this along to other functions or setting global fields.
+func (l *line) With(key string, value interface{}) Line {
+	l2 := l.clone()
+	l2.fields[key] = value
+	return l2
+}
+
+func (l *line) clone() *line {
+	l2 := &(*l)
+	l2.fields = map[string]interface{}{}
+	for k, v := range l.fields {
+		l2.fields[k] = v
+	}
+	return l2
 }
 
 // Printf prints to the appropriate destination
@@ -150,33 +179,77 @@ func (l *line) Printf(format string, v ...interface{}) {
 func (l *line) Println(v ...interface{}) {
 	print(l, fmt.Sprint(v...), "\n")
 }
-func (l *line) Info() Line {
-	l.sev = logging.Info
-	return l
-}
-func (l *line) Error() Line {
-	l.sev = logging.Error
-	return l
+
+func (l *line) Debug() Line {
+	l2 := l.clone()
+	l2.sev = logging.Debug
+	return l2
 }
 
+func (l *line) Info() Line {
+	l2 := l.clone()
+	l2.sev = logging.Info
+	return l2
+}
+func (l *line) Error() Line {
+	l2 := l.clone()
+	l2.sev = logging.Error
+	return l2
+}
+
+// P returns a new logger with the provided severity
 func P(sev string) Line {
 	return &line{sev: logging.ParseSeverity(sev)}
 }
+
+// Info returns a new logger with INFO severity
+func Debug() Line {
+	return &line{sev: logging.Debug}
+}
+
+// Info returns a new logger with INFO severity
 func Info() Line {
 	return &line{sev: logging.Info}
 }
+
+// Error returns a new logger with ERROR severity
 func Error() Line {
 	return &line{sev: logging.Error}
 }
 
+// With returns a new logger with the fields passed in
+func With(key string, value interface{}) Line {
+	return F(key, value)
+}
+
+// F see line.F()
 func F(key string, value interface{}) Line {
 	l := &line{sev: logging.Info}
-	return l.AddField(key, value)
+	return l.F(key, value)
 }
+
+// WithTrace adds tracing info which Cloud Logging uses to correlate logs related to a particular request
+func (l *line) WithTrace(r *http.Request) Line {
+	var trace string
+	if clients.projectID != "" { // should we log an error here since this won't work without it. "Must call InitLogging"
+		traceHeader := r.Header.Get("X-Cloud-Trace-Context")
+		traceParts := strings.Split(traceHeader, "/")
+		if len(traceParts) > 0 && len(traceParts[0]) > 0 {
+			trace = fmt.Sprintf("projects/%s/traces/%s", clients.projectID, traceParts[0])
+		}
+	}
+	l2 := *l
+	l2.trace = trace
+	return &l2
+}
+
+// Println take a wild guess
 func Println(v ...interface{}) {
 	l := &line{sev: logging.Info}
 	l.Println(v...)
 }
+
+// Printf take a wild guess
 func Printf(format string, v ...interface{}) {
 	l := &line{sev: logging.Info}
 	l.Printf(format, v...)
@@ -200,8 +273,8 @@ func print(line *line, message, suffix string) {
 				Severity:  sev.String(),
 				Message:   msg,
 				Component: component,
-				// Trace:     trace, // see https://cloud.google.com/run/docs/logging#writing_structured_logs
-				Fields: line.fields,
+				Trace:     line.trace, // see https://cloud.google.com/run/docs/logging#writing_structured_logs
+				Fields:    line.fields,
 			})
 			return
 		}
