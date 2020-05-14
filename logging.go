@@ -160,12 +160,13 @@ func (l *line) With(key string, value interface{}) Line {
 }
 
 func (l *line) clone() *line {
-	l2 := &(*l)
-	l2.fields = map[string]interface{}{}
+	l2 := *l
+	l3 := &l2
+	l3.fields = map[string]interface{}{}
 	for k, v := range l.fields {
-		l2.fields[k] = v
+		l3.fields[k] = v
 	}
-	return l2
+	return l3
 }
 
 // Printf prints to the appropriate destination
