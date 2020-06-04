@@ -67,18 +67,18 @@ func init() {
 	clients = &clientWrapper{}
 	onGCE = metadata.OnGCE()
 	if onGCE {
-		// x, _ := metadata.InstanceAttributes()
-		// fmt.Printf("InstanceAttributes: %+v\n", x)
-		// s, _ := metadata.InstanceID()
-		// fmt.Printf("InstanceID: %+v\n", s)
-		// s, _ = metadata.InstanceName()
-		// fmt.Printf("InstanceName: %+v\n", s)
-		// x, _ = metadata.InstanceTags()
-		// fmt.Printf("InstanceTags: %+v\n", x)
-		// s, _ = metadata.Zone()
-		// fmt.Printf("InstanceZone: %+v\n", s)
-		// From what I can see, instanceID will be empty if on cloud run
+		x, _ := metadata.InstanceAttributes()
+		fmt.Printf("InstanceAttributes: %+v\n", x)
 		s, _ := metadata.InstanceID()
+		fmt.Printf("InstanceID: %+v\n", s)
+		s, _ = metadata.InstanceName()
+		fmt.Printf("InstanceName: %+v\n", s)
+		x, _ = metadata.InstanceTags()
+		fmt.Printf("InstanceTags: %+v\n", x)
+		s, _ = metadata.Zone()
+		fmt.Printf("InstanceZone: %+v\n", s)
+		// From what I can see, instanceID will be empty if on cloud run
+		s, _ = metadata.InstanceName()
 		if s == "" {
 			onCloudRun = true
 		}
