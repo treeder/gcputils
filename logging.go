@@ -77,7 +77,8 @@ func init() {
 		fmt.Printf("InstanceTags: %+v\n", x)
 		s, _ = metadata.Zone()
 		fmt.Printf("InstanceZone: %+v\n", s)
-		// From what I can see, instanceID will be empty if on cloud run
+		// From what I can see, instanceName is empty if on cloud run (instanceID used to be empty)
+		// On GCE, there are a couple of instance tags ([http-server https-server]) and instance attributes which appear to also be empty on cloud run
 		s, _ = metadata.InstanceName()
 		if s == "" {
 			onCloudRun = true

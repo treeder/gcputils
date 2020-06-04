@@ -1,0 +1,1 @@
+Set G_SERVICE_NAME and G_PROJECT_ID then just `make deploy`.
