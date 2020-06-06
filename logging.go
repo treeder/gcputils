@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,7 +14,6 @@ import (
 	"strings"
 
 	"cloud.google.com/go/compute/metadata"
-	"cloud.google.com/go/errorreporting"
 	"cloud.google.com/go/logging"
 	"google.golang.org/api/option"
 )
@@ -30,6 +28,7 @@ var (
 
 // Printer common interface
 type Printer interface {
+	Print(v ...interface{})
 	Println(v ...interface{})
 	Printf(format string, v ...interface{})
 }
@@ -99,34 +98,32 @@ func InitLogging(ctx context.Context, projectID string, opts []option.ClientOpti
 				return clients, fmt.Errorf("error creating google cloud logger: %v", err)
 			}
 			clients.logger = clients.logClient.Logger("goapp")
-			// setup error reporting and logging clients
-			clients.errorClient, err = errorreporting.NewClient(context.Background(), projectID, errorreporting.Config{
-				// ServiceName: "MyService",
-				OnError: func(err error) {
-					log.Printf("stackdriver: Could not log error: %v", err)
-				},
-			}, opts...)
-			if err != nil {
-				return clients, fmt.Errorf("error creating error reporting client: %v", err)
-			}
+			// Setup error reporting and logging clients
+			// looks like this isn't required anymore, it will automatically do it with proper logging:
+			// https://cloud.google.com/error-reporting/docs/setup/compute-engine#go
+			// clients.errorClient, err = errorreporting.NewClient(context.Background(), projectID, errorreporting.Config{
+			// 	// ServiceName: "MyService",
+			// 	OnError: func(err error) {
+			// 		log.Printf("stackdriver: Could not log error: %v", err)
+			// 	},
+			// }, opts...)
+			// if err != nil {
+			// 	return clients, fmt.Errorf("error creating error reporting client: %v", err)
+			// }
 		}
 	}
 	return clients, nil
 }
 
 type clientWrapper struct {
-	projectID   string
-	logClient   *logging.Client
-	logger      *logging.Logger
-	errorClient *errorreporting.Client
+	projectID string
+	logClient *logging.Client
+	logger    *logging.Logger
 }
 
 func (c *clientWrapper) Close() error {
 	if c.logClient != nil {
 		c.logClient.Close()
-	}
-	if c.errorClient != nil {
-		c.errorClient.Close()
 	}
 	return nil
 }
@@ -182,6 +179,12 @@ func (l *line) Println(v ...interface{}) {
 	print(l, fmt.Sprint(v...), "\n")
 }
 
+// Print prints to the appropriate destination
+// Arguments are handled in the manner of fmt.Print.
+func (l *line) Print(v ...interface{}) {
+	print(l, fmt.Sprint(v...), "")
+}
+
 func (l *line) Debug() Line {
 	l2 := l.clone()
 	l2.sev = logging.Debug
@@ -204,7 +207,7 @@ func P(sev string) Line {
 	return &line{sev: logging.ParseSeverity(sev)}
 }
 
-// Info returns a new logger with INFO severity
+// Debug returns a new logger with DEBUG severity
 func Debug() Line {
 	return &line{sev: logging.Debug}
 }
@@ -249,6 +252,12 @@ func (l *line) WithTrace(r *http.Request) Line {
 func Println(v ...interface{}) {
 	l := &line{sev: logging.Info}
 	l.Println(v...)
+}
+
+// Println take a wild guess
+func Print(v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Print(v...)
 }
 
 // Printf take a wild guess
@@ -300,14 +309,6 @@ func print(line *line, message, suffix string) {
 			Payload: payload,
 		})
 		// lg.Flush()
-		if sev >= logging.Error {
-			clients.errorClient.Report(errorreporting.Entry{
-				Error: errors.New(message),
-				// I think this adds the stack automatically, so not including it here
-				// User:  "some user", // TODO: could add this feature in somehow
-			})
-			// errorClient.Flush()
-		}
 		return
 	}
 	// now just regular console

@@ -97,7 +97,7 @@ func CredentialsOptionsFromEnv(envKey string) ([]option.ClientOption, error) {
 	return opts, nil
 }
 
-// KeyAndOptionsFromEnv this will check an environment var with key you provide, which should contain
+// AccountAndCredentialsFromEnv this will check an environment var with key you provide, which should contain
 // your JSON credentials base64 encoded. Can passed returned value directly into clients.
 // Run `base64 -w 0 account.json` to create this value.
 // This also supports running on GCP, just don't set this environment variable or metadata on GCP.
