@@ -133,6 +133,55 @@ func SetComponent(s string) {
 	component = s
 }
 
+// Println take a wild guess
+func Println(v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Println(v...)
+}
+
+// Println take a wild guess
+func Print(v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Print(v...)
+}
+
+// Printf take a wild guess
+func Printf(format string, v ...interface{}) {
+	l := &line{sev: logging.Info}
+	l.Printf(format, v...)
+}
+
+// P returns a new logger with the provided severity
+func P(sev string) Line {
+	return &line{sev: logging.ParseSeverity(sev)}
+}
+
+// Debug returns a new logger with DEBUG severity
+func Debug() Line {
+	return &line{sev: logging.Debug}
+}
+
+// Info returns a new logger with INFO severity
+func Info() Line {
+	return &line{sev: logging.Info}
+}
+
+// Error returns a new logger with ERROR severity
+func Error() Line {
+	return &line{sev: logging.Error}
+}
+
+// With returns a new logger with the fields passed in
+func With(key string, value interface{}) Line {
+	return F(key, value)
+}
+
+// F see line.F()
+func F(key string, value interface{}) Line {
+	l := &line{sev: logging.Info}
+	return l.F(key, value)
+}
+
 type line struct {
 	sev    logging.Severity
 	fields map[string]interface{}
@@ -176,7 +225,7 @@ func (l *line) Printf(format string, v ...interface{}) {
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l, fmt.Sprint(v...), "\n")
+	print(l, fmt.Sprintln(v...), "")
 }
 
 // Print prints to the appropriate destination
@@ -202,37 +251,6 @@ func (l *line) Error() Line {
 	return l2
 }
 
-// P returns a new logger with the provided severity
-func P(sev string) Line {
-	return &line{sev: logging.ParseSeverity(sev)}
-}
-
-// Debug returns a new logger with DEBUG severity
-func Debug() Line {
-	return &line{sev: logging.Debug}
-}
-
-// Info returns a new logger with INFO severity
-func Info() Line {
-	return &line{sev: logging.Info}
-}
-
-// Error returns a new logger with ERROR severity
-func Error() Line {
-	return &line{sev: logging.Error}
-}
-
-// With returns a new logger with the fields passed in
-func With(key string, value interface{}) Line {
-	return F(key, value)
-}
-
-// F see line.F()
-func F(key string, value interface{}) Line {
-	l := &line{sev: logging.Info}
-	return l.F(key, value)
-}
-
 // WithTrace adds tracing info which Cloud Logging uses to correlate logs related to a particular request
 func (l *line) WithTrace(r *http.Request) Line {
 	var trace string
@@ -246,24 +264,6 @@ func (l *line) WithTrace(r *http.Request) Line {
 	l2 := *l
 	l2.trace = trace
 	return &l2
-}
-
-// Println take a wild guess
-func Println(v ...interface{}) {
-	l := &line{sev: logging.Info}
-	l.Println(v...)
-}
-
-// Println take a wild guess
-func Print(v ...interface{}) {
-	l := &line{sev: logging.Info}
-	l.Print(v...)
-}
-
-// Printf take a wild guess
-func Printf(format string, v ...interface{}) {
-	l := &line{sev: logging.Info}
-	l.Printf(format, v...)
 }
 
 func print(line *line, message, suffix string) {
