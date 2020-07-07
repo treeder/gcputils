@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -171,6 +172,18 @@ func Error() Line {
 	return &line{sev: logging.Error}
 }
 
+// Errorf will log an error (if it hasn't already been logged) and return an error as if fmt.Errorf was called
+func Errorf(format string, v ...interface{}) error {
+	l := &line{sev: logging.Error}
+	return l.Errorf(format, v...)
+}
+
+// Err will log an error (if it hasn't already been logged) and return the same error
+func Err(err error) error {
+	l := &line{sev: logging.Error}
+	return l.Err(err)
+}
+
 // With returns a new logger with the fields passed in
 func With(key string, value interface{}) Line {
 	return F(key, value)
@@ -249,6 +262,44 @@ func (l *line) Error() Line {
 	l2 := l.clone()
 	l2.sev = logging.Error
 	return l2
+}
+
+// sentinel error so we don't log the same thing twice
+// var logged = errors.New("already logged")
+
+type loggedError struct {
+	err error
+}
+
+func (e *loggedError) Error() string { return e.err.Error() }
+func (e *loggedError) Unwrap() error { return e.err }
+
+// Errorf will log an error (if it hasn't already been logged) and return an error as if fmt.Errorf was called
+func (l *line) Errorf(format string, v ...interface{}) error {
+	e2 := fmt.Errorf(format, v...)
+	// looping through operands in case user is using %w and we already logged the error
+	for _, x := range v {
+		switch y := x.(type) {
+		case error:
+			var e *loggedError
+			if errors.As(y, &e) {
+				return e2
+			}
+		}
+	}
+	return l.Err(e2)
+}
+
+// Err will log an error (if it hasn't already been logged) and return the same error
+func (l *line) Err(err error) error {
+	var e *loggedError
+	if errors.As(err, &e) {
+		return err
+	}
+	l2 := l.clone()
+	l2.sev = logging.Error
+	l.Print(err)
+	return &loggedError{err}
 }
 
 // WithTrace adds tracing info which Cloud Logging uses to correlate logs related to a particular request
