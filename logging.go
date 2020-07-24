@@ -367,22 +367,27 @@ func print(line *line, message, suffix string) {
 }
 
 func toConsole(line *line, message, stack, suffix string) {
+	var msg strings.Builder
 	// add fields to msg
-	msg := "\t" + strings.ToUpper(line.sev.String()) + "\t" + message
+	msg.WriteString("\t")
+	msg.WriteString(strings.ToUpper(line.sev.String()))
+	msg.WriteString("\t")
+	msg.WriteString(message)
 	if line.fields != nil {
-		// msg += "\n"
+		msg.WriteString("\t[")
 		for k, v := range line.fields {
-			msg += fmt.Sprintf(" [%v=%v]", k, v)
+			fmt.Fprintf(&msg, "%v=%v, ", k, v)
 		}
+		msg.WriteString("]")
 	}
-	msg += "\n"
-	msg += stack
-	msg += suffix
-	log.Println(msg)
+	msg.WriteString("\n")
+	msg.WriteString(stack)
+	msg.WriteString(suffix)
+	log.Println(msg.String())
 }
 
 func takeStacktrace() string {
-	buffer := bytes.Buffer{}
+	buffer := bytes.Buffer{} // switch to strings.Builder ?
 	buffer.WriteString("goroutine 1 [running]:\n")
 	pc := make([]uintptr, 25)
 	_ = runtime.Callers(2, pc)
