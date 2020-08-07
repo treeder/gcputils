@@ -16,6 +16,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
+	"github.com/treeder/gotils"
 	"google.golang.org/api/option"
 )
 
@@ -232,19 +233,19 @@ func (l *line) clone() *line {
 // Printf prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Printf.
 func (l *line) Printf(format string, v ...interface{}) {
-	print(l, fmt.Sprintf(format, v...), "")
+	print(l, fmt.Sprintf(format, v...), "", v)
 }
 
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l, fmt.Sprintln(v...), "")
+	print(l, fmt.Sprintln(v...), "", v)
 }
 
 // Print prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Print.
 func (l *line) Print(v ...interface{}) {
-	print(l, fmt.Sprint(v...), "")
+	print(l, fmt.Sprint(v...), "", v)
 }
 
 func (l *line) Debug() Line {
@@ -317,16 +318,51 @@ func (l *line) WithTrace(r *http.Request) Line {
 	return &l2
 }
 
-func print(line *line, message, suffix string) {
-	sev := line.sev
-	// sev := logging.ParseSeverity(severity)
+func print(line *line, message, suffix string, v ...interface{}) {
+	// Newer experiment based on this: https://github.com/treeder/gotils/issues/2
+	// looping through operands in case user is using %w and we already logged the error
 	stack := ""
-	if sev >= logging.Error {
+	for _, x := range v {
+		switch y := x.(type) {
+		case error:
+			var stacked gotils.FullStacked
+			if errors.As(y, &stacked) {
+				line = line.clone()
+				line.sev = logging.Error
+				// then we'll output all the good stuff
+				buffer := bytes.Buffer{}
+				buffer.WriteString("goroutine 1 [running]:\n")
+				for i, frame := range stacked.Stack() {
+					if i != 0 {
+						buffer.WriteRune('\n')
+					}
+					buffer.WriteString(frame.Function)
+					buffer.WriteRune('(')
+					buffer.WriteString(fmt.Sprintf("%v", frame.PC))
+					buffer.WriteRune(')')
+					buffer.WriteRune('\n')
+					buffer.WriteRune('\t')
+					buffer.WriteString(frame.File)
+					buffer.WriteRune(':')
+					buffer.WriteString(strconv.Itoa(frame.Line))
+					i++
+				}
+				stack = buffer.String()
+				line.fields = stacked.Fields()
+			}
+		}
+	}
+	if stack == "" && line.sev >= logging.Error {
 		// buf := make([]byte, 1<<16) // 65536 - seems kinda big?
 		// i := runtime.Stack(buf, false)
 		// stack = string(buf[0:i])
 		stack = takeStacktrace()
 	}
+	print2(line, message, stack, suffix)
+}
+
+func print2(line *line, message, stack, suffix string) {
+	sev := line.sev
 	if onGCE {
 		msg := message + "\n" + stack
 		if onCloudRun {
