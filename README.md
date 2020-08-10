@@ -3,3 +3,51 @@
 Little Go helpers for Google Cloud Platform. 
 
 This is where I experiment with Go things specifically for Google Cloud.
+
+## Logging
+
+Why another lib?  I got annoyed with trying to get Zap and others to work properly with Stack Driver (tip: they don't). 
+On top of that, the various Google services handle logging differently which also adds to the annoying level. 
+
+So I thought I'd just make one that works with any Google Cloud services.
+
+Here's what I found: 
+
+* If you are using GCE and writing to stdout/stderr, you probably won't/can't get it right, even if you use the Docker gcplogs logging driver. You will most likely spend way too much time trying to figure this out and you WON'T be able to do it. So don't bother.
+* For GCE you must use the logging API so go grab a client and start logging that way. 
+* If you are using Cloud Run, you CAN write to stdout/stderr and you CAN get it right. You just need to log in a specific JSON format. 
+* If you are using Cloud Run and you write a log with severity ERROR or higher, it will automatically create an incident in error reporting. Awesome! But this is ONLY in Cloud Run. And you must include the stack trace in the message field. Yes, that's right, append a line break and your stack trace to the "message" field in order to get error reporting to pick it up.
+* If you want to use Error Reporting on GCE, you have to call it explicitly.
+
+The logging stuff in here handles all those cases.
+
+While I was at it, I thought I'd try to make it more stdlib'ish. Here's how to use it.
+
+```sh
+# basic log message
+gotils.Info().Println("hi")
+# add fields
+l := gotils.With("abc", 123)
+# then anytime you write a log, those structured fields will be output in the proper format for Google Cloud, or human
+# readable when developing locally. 
+l.Error().Printf("some error:" err)
+```
+
+If you want to pass it around in your context:
+
+```sh
+# at startup:
+l := gcputils.Info()
+ctx = context.WithValue(ctx, "logger", l)
+
+# then add a couple helper functions:
+func L(ctx context.Context) gcputils.Line {
+	return ctx.Value("logger").(gcputils.Line)
+}
+
+# Add fields to the context
+func LWith(ctx context.Context, key string, value interface{}) context.Context {
+	return context.WithValue(ctx, "logger", L(ctx).With(key, value))
+}
+```
+
