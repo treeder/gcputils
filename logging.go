@@ -28,6 +28,10 @@ var (
 	clients    *clientWrapper
 )
 
+const (
+	traceHeader = "X-Cloud-Trace-Context"
+)
+
 // Printer common interface
 type Printer interface {
 	Print(v ...interface{})
@@ -318,6 +322,21 @@ func (l *line) WithTrace(r *http.Request) Line {
 	return &l2
 }
 
+// WithTrace adds tracing info which Cloud Logging uses to correlate logs related to a particular request.WithTrace
+// This is for use in conjuction with gotils contextual errors, whereas the other function with the same name
+// is used for logging.
+func WithTrace(ctx context.Context, r *http.Request) context.Context {
+	var trace string
+	if clients.projectID != "" { // should we log an error here since this won't work without it. "Must call InitLogging"
+		traceHeader := r.Header.Get(traceHeader)
+		traceParts := strings.Split(traceHeader, "/")
+		if len(traceParts) > 0 && len(traceParts[0]) > 0 {
+			trace = fmt.Sprintf("projects/%s/traces/%s", clients.projectID, traceParts[0])
+		}
+	}
+	return gotils.With(ctx, traceHeader, trace)
+}
+
 func print(line *line, message, suffix string, v ...interface{}) {
 	// Newer experiment based on this: https://github.com/treeder/gotils/issues/2
 	// looping through operands in case user is using %w and we already logged the error
@@ -349,6 +368,12 @@ func print(line *line, message, suffix string, v ...interface{}) {
 				}
 				stack = buffer.String()
 				line.fields = stacked.Fields()
+				if line.fields != nil {
+					tr := line.fields[traceHeader]
+					if tr != nil {
+						line.trace = tr.(string)
+					}
+				}
 			}
 		}
 	}
