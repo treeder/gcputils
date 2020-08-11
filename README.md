@@ -50,4 +50,3 @@ func LWith(ctx context.Context, key string, value interface{}) context.Context {
 	return context.WithValue(ctx, "logger", L(ctx).With(key, value))
 }
 ```
-
