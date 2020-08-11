@@ -47,6 +47,8 @@ type Fielder interface {
 	// With clones (unlike F), then adds structured key/value pairs which will show up nicely in Cloud Logging.
 	// Use this one if you plan on passing this along to other functions or setting global fields.
 	With(string, interface{}) Line
+
+	WithTrace(r *http.Request) Line
 }
 
 // Leveler methods to set levels on loggers
