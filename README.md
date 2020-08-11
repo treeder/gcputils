@@ -23,29 +23,29 @@ The logging stuff in here handles all those cases.
 
 While I was at it, I thought I'd try to make it more stdlib'ish. Here's how to use it.
 
-```sh
-# basic log message
+```go
+// basic log message
 gotils.Info().Println("hi")
-# add fields
+// add fields
 l := gotils.With("abc", 123)
-# then anytime you write a log, those structured fields will be output in the proper format for Google Cloud, or human
-# readable when developing locally. 
+// then anytime you write a log, those structured fields will be output in the proper format for Google Cloud, or human
+// readable when developing locally. 
 l.Error().Printf("some error:" err)
 ```
 
 If you want to pass it around in your context:
 
-```sh
-# at startup:
+```go
+// at startup:
 l := gcputils.Info()
 ctx = context.WithValue(ctx, "logger", l)
 
-# then add a couple helper functions:
+// then add a couple helper functions:
 func L(ctx context.Context) gcputils.Line {
 	return ctx.Value("logger").(gcputils.Line)
 }
 
-# Add fields to the context
+// Add fields to the context
 func LWith(ctx context.Context, key string, value interface{}) context.Context {
 	return context.WithValue(ctx, "logger", L(ctx).With(key, value))
 }
