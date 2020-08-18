@@ -40,9 +40,6 @@ func GetEnvVar(name, def string) string {
 	if def != "" {
 		return def
 	}
-	// log.Info().Str(name, tgApiKey).Msg("Got from metadata server")
-	log.Fatalf("NO %v", name)
-	// todo: this shouldn't fatal like this, kind of annoying
 	return e
 }
 
