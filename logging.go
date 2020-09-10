@@ -339,7 +339,7 @@ func WithTrace(ctx context.Context, r *http.Request) context.Context {
 	return gotils.With(ctx, traceHeader, trace)
 }
 
-func print(line *line, message, suffix string, v ...interface{}) {
+func print(ctx context.Context, line *line, message, suffix string, v ...interface{}) {
 	// Newer experiment based on this: https://github.com/treeder/gotils/issues/2
 	// looping through operands in case user is using %w and we already logged the error
 	stack := ""
@@ -385,11 +385,25 @@ func print(line *line, message, suffix string, v ...interface{}) {
 		// stack = string(buf[0:i])
 		stack = takeStacktrace()
 	}
-	print2(line, message, stack, suffix)
+	print2(ctx, line, message, stack, suffix)
 }
 
-func print2(line *line, message, stack, suffix string) {
+func print2(ctx context.Context, line *line, message, stack, suffix string) {
 	sev := line.sev
+	// merge fields from gotils context fields
+	gotilsFields := gotils.Fields(ctx)
+	if gotilsFields != nil {
+		if line.fields == nil {
+			line.fields = map[string]interface{}{}
+		}
+		for k, v := range gotilsFields {
+			// which one takes precedence?
+			_, ok := line.fields[k]
+			if !ok {
+				line.fields[k] = v
+			}
+		}
+	}
 	if onGCE {
 		msg := message + "\n" + stack
 		if onCloudRun {

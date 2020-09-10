@@ -105,7 +105,14 @@ func AccountAndCredentialsFromEnv(envKey string) (*GoogleJSON, []option.ClientOp
 	serviceAccountEncoded := GetEnvVar(envKey, "x") // base64 encoded json creds
 	if serviceAccountEncoded == "x" {
 		if metadata.OnGCE() {
-			return nil, opts, nil
+			gProjectID2, err := metadata.ProjectID()
+			if err != nil {
+				fmt.Println("Error getting project ID from GCP metadata:", err)
+				return nil, nil, err
+			}
+			acc := &GoogleJSON{ProjectID: gProjectID2}
+			// fmt.Println("PROJECT_ID FROM GCP METADATA: ", gProjectID2)
+			return acc, opts, nil
 		}
 		return nil, opts, fmt.Errorf("env var %v not found", envKey)
 	}
