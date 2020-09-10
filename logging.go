@@ -239,19 +239,19 @@ func (l *line) clone() *line {
 // Printf prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Printf.
 func (l *line) Printf(format string, v ...interface{}) {
-	print(l, fmt.Sprintf(format, v...), "", v)
+	print(l, fmt.Sprintf(format, v...), "", v...)
 }
 
 // Println prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Println.
 func (l *line) Println(v ...interface{}) {
-	print(l, fmt.Sprintln(v...), "", v)
+	print(l, fmt.Sprintln(v...), "", v...)
 }
 
 // Print prints to the appropriate destination
 // Arguments are handled in the manner of fmt.Print.
 func (l *line) Print(v ...interface{}) {
-	print(l, fmt.Sprint(v...), "", v)
+	print(l, fmt.Sprint(v...), "", v...)
 }
 
 func (l *line) Debug() Line {
@@ -339,15 +339,22 @@ func WithTrace(ctx context.Context, r *http.Request) context.Context {
 	return gotils.With(ctx, traceHeader, trace)
 }
 
-func print(ctx context.Context, line *line, message, suffix string, v ...interface{}) {
+func print(ctx context.Context, line *line, message, suffix string, args ...interface{}) {
 	// Newer experiment based on this: https://github.com/treeder/gotils/issues/2
 	// looping through operands in case user is using %w and we already logged the error
 	stack := ""
-	for _, x := range v {
+	for _, x := range args {
+		// this can work instead of switch too:
+		// _, ok := x.(error)
+		// if ok {
+		// 	fmt.Println("it's an error")
+		// }
 		switch y := x.(type) {
 		case error:
+			// fmt.Println("is error")
 			var stacked gotils.FullStacked
 			if errors.As(y, &stacked) {
+				// fmt.Printf("IS FULL STACKED\n")
 				line = line.clone()
 				line.sev = logging.Error
 				// then we'll output all the good stuff
@@ -377,6 +384,7 @@ func print(ctx context.Context, line *line, message, suffix string, v ...interfa
 					}
 				}
 			}
+
 		}
 	}
 	if stack == "" && line.sev >= logging.Error {
@@ -451,11 +459,17 @@ func toConsole(line *line, message, stack, suffix string) {
 	msg.WriteString("\t")
 	msg.WriteString(message)
 	if line.fields != nil {
-		msg.WriteString("\t[")
-		for k, v := range line.fields {
-			fmt.Fprintf(&msg, "%v=%v, ", k, v)
+		if len(line.fields) > 0 {
+			msg.WriteString("\t[")
+			i := 0
+			for k, v := range line.fields {
+				if i > 0 {
+					msg.WriteString(", ")
+				}
+				fmt.Fprintf(&msg, "%v=%v", k, v)
+			}
+			msg.WriteString("]")
 		}
-		msg.WriteString("]")
 	}
 	msg.WriteString("\n")
 	msg.WriteString(stack)
