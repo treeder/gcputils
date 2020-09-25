@@ -467,6 +467,7 @@ func toConsole(line *line, message, stack, suffix string) {
 					msg.WriteString(", ")
 				}
 				fmt.Fprintf(&msg, "%v=%v", k, v)
+				i++
 			}
 			msg.WriteString("]")
 		}
