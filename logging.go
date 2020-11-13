@@ -147,7 +147,7 @@ func Println(v ...interface{}) {
 	l.Println(v...)
 }
 
-// Println take a wild guess
+// Print take a wild guess
 func Print(v ...interface{}) {
 	l := &line{sev: logging.Info}
 	l.Print(v...)
