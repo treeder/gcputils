@@ -66,6 +66,7 @@ type Line interface {
 	Fielder
 	Printer
 	Leveler
+	LogBeta(ctx context.Context, severity, message string)
 }
 
 func init() {
@@ -271,6 +272,13 @@ func (l *line) Error() Line {
 	return l2
 }
 
+// gotils thing
+func (l *line) LogBeta(ctx context.Context, severity, message string) {
+	l = l.clone()
+	l.sev = logging.ParseSeverity(severity)
+	print3(ctx, l, message, "", "")
+}
+
 // sentinel error so we don't log the same thing twice
 // var logged = errors.New("already logged")
 
@@ -358,24 +366,7 @@ func print(line *line, message, suffix string, args ...interface{}) {
 				line = line.clone()
 				line.sev = logging.Error
 				// then we'll output all the good stuff
-				buffer := bytes.Buffer{}
-				buffer.WriteString("goroutine 1 [running]:\n")
-				for i, frame := range stacked.Stack() {
-					if i != 0 {
-						buffer.WriteRune('\n')
-					}
-					buffer.WriteString(frame.Function)
-					buffer.WriteRune('(')
-					buffer.WriteString(fmt.Sprintf("%v", frame.PC))
-					buffer.WriteRune(')')
-					buffer.WriteRune('\n')
-					buffer.WriteRune('\t')
-					buffer.WriteString(frame.File)
-					buffer.WriteRune(':')
-					buffer.WriteString(strconv.Itoa(frame.Line))
-					i++
-				}
-				stack = buffer.String()
+				stack = stackToString(stacked.Stack())
 				line.fields = stacked.Fields()
 				if line.fields != nil {
 					tr := line.fields[traceHeader]
@@ -396,22 +387,50 @@ func print(line *line, message, suffix string, args ...interface{}) {
 	print2(line, message, stack, suffix)
 }
 
+func stackToString(frames []runtime.Frame) string {
+	buffer := bytes.Buffer{}
+	buffer.WriteString("goroutine 1 [running]:\n")
+	for i, frame := range frames {
+		if i != 0 {
+			buffer.WriteRune('\n')
+		}
+		buffer.WriteString(frame.Function)
+		buffer.WriteRune('(')
+		buffer.WriteString(fmt.Sprintf("%v", frame.PC))
+		buffer.WriteRune(')')
+		buffer.WriteRune('\n')
+		buffer.WriteRune('\t')
+		buffer.WriteString(frame.File)
+		buffer.WriteRune(':')
+		buffer.WriteString(strconv.Itoa(frame.Line))
+		i++
+	}
+	return buffer.String()
+}
+
 func print2(line *line, message, stack, suffix string) {
+	print3(nil, line, message, stack, suffix)
+}
+
+func print3(ctx context.Context, line *line, message, stack, suffix string) {
 	sev := line.sev
-	// todo: merge fields from gotils context fields
-	// gotilsFields := gotils.Fields(ctx)
-	// if gotilsFields != nil {
-	// 	if line.fields == nil {
-	// 		line.fields = map[string]interface{}{}
-	// 	}
-	// 	for k, v := range gotilsFields {
-	// 		// which one takes precedence?
-	// 		_, ok := line.fields[k]
-	// 		if !ok {
-	// 			line.fields[k] = v
-	// 		}
-	// 	}
-	// }
+	if ctx != nil {
+		// todo: merge fields from gotils context fields
+		// todo: do the same for trace (gotils.withtrace)
+		gotilsFields := gotils.Fields(ctx)
+		if gotilsFields != nil {
+			if line.fields == nil {
+				line.fields = map[string]interface{}{}
+			}
+			for k, v := range gotilsFields {
+				// which one takes precedence?
+				_, ok := line.fields[k]
+				if !ok {
+					line.fields[k] = v
+				}
+			}
+		}
+	}
 	if onGCE {
 		msg := message + "\n" + stack
 		if onCloudRun {
