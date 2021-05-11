@@ -66,7 +66,7 @@ type Line interface {
 	Fielder
 	Printer
 	Leveler
-	LogBeta(ctx context.Context, severity, message string)
+	LogBeta(ctx context.Context, severity, format string, a ...interface{})
 }
 
 func init() {
@@ -273,10 +273,10 @@ func (l *line) Error() Line {
 }
 
 // gotils thing
-func (l *line) LogBeta(ctx context.Context, severity, message string) {
+func (l *line) LogBeta(ctx context.Context, severity, format string, a ...interface{}) {
 	l = l.clone()
 	l.sev = logging.ParseSeverity(severity)
-	print3(ctx, l, message, "", "")
+	printCtx(ctx, l, format, a...)
 }
 
 // sentinel error so we don't log the same thing twice
@@ -345,6 +345,46 @@ func WithTrace(ctx context.Context, r *http.Request) context.Context {
 		}
 	}
 	return gotils.With(ctx, traceHeader, trace)
+}
+
+func printCtx(ctx context.Context, line *line, format string, a ...interface{}) {
+	// Newer experiment based on this: https://github.com/treeder/gotils/issues/2
+	// looping through operands in case user is using %w and we already logged the error
+	stack := ""
+	for _, x := range a {
+		// this can work instead of switch too:
+		// _, ok := x.(error)
+		// if ok {
+		// 	fmt.Println("it's an error")
+		// }
+		switch y := x.(type) {
+		case error:
+			// fmt.Println("is error")
+			var stacked gotils.FullStacked
+			if errors.As(y, &stacked) {
+				// fmt.Printf("IS FULL STACKED\n")
+				line = line.clone()
+				line.sev = logging.Error
+				// then we'll output all the good stuff
+				stack = stackToString(stacked.Stack())
+				line.fields = stacked.Fields()
+				if line.fields != nil {
+					tr := line.fields[traceHeader]
+					if tr != nil {
+						line.trace = tr.(string)
+					}
+				}
+			}
+
+		}
+	}
+	if stack == "" && line.sev >= logging.Error {
+		// buf := make([]byte, 1<<16) // 65536 - seems kinda big?
+		// i := runtime.Stack(buf, false)
+		// stack = string(buf[0:i])
+		stack = takeStacktrace()
+	}
+	print3(ctx, line, fmt.Sprintf(format, a...), stack, "")
 }
 
 func print(line *line, message, suffix string, args ...interface{}) {
@@ -473,28 +513,29 @@ func print3(ctx context.Context, line *line, message, stack, suffix string) {
 func toConsole(line *line, message, stack, suffix string) {
 	var msg strings.Builder
 	// add fields to msg
-	msg.WriteString("\t")
+	// msg.WriteString("\t")
 	msg.WriteString(strings.ToUpper(line.sev.String()))
 	msg.WriteString("\t")
 	msg.WriteString(message)
 	if line.fields != nil {
 		if len(line.fields) > 0 {
-			msg.WriteString("\t[")
+			msg.WriteString("\n\t")
+			// msg.WriteString("\t[")
 			i := 0
 			for k, v := range line.fields {
 				if i > 0 {
-					msg.WriteString(", ")
+					msg.WriteString("\n\t")
 				}
 				fmt.Fprintf(&msg, "%v=%v", k, v)
 				i++
 			}
-			msg.WriteString("]")
+			// msg.WriteString("]")
 		}
 	}
 	msg.WriteString("\n")
 	msg.WriteString(stack)
 	msg.WriteString(suffix)
-	log.Println(msg.String())
+	fmt.Printf("%v\n", msg.String())
 }
 
 func takeStacktrace() string {
