@@ -535,7 +535,12 @@ func toConsole(line *line, message, stack, suffix string) {
 	msg.WriteString("\n")
 	msg.WriteString(stack)
 	msg.WriteString(suffix)
-	fmt.Printf("%v\n", msg.String())
+	s := msg.String()
+	if strings.HasSuffix(s, "\n") {
+		fmt.Print(msg.String())
+	} else {
+		fmt.Printf("%v\n", msg.String())
+	}
 }
 
 func takeStacktrace() string {
