@@ -175,6 +175,10 @@ func Info() Line {
 	return &line{sev: logging.Info}
 }
 
+func NewLogger() Line {
+	return Info()
+}
+
 // Error returns a new logger with ERROR severity
 func Error() Line {
 	return &line{sev: logging.Error}
@@ -266,6 +270,7 @@ func (l *line) Info() Line {
 	l2.sev = logging.Info
 	return l2
 }
+
 func (l *line) Error() Line {
 	l2 := l.clone()
 	l2.sev = logging.Error
