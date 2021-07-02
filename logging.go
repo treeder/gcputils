@@ -477,7 +477,11 @@ func print3(ctx context.Context, line *line, message, stack, suffix string) {
 		}
 	}
 	if onGCE {
-		msg := message + "\n" + stack
+		msg := message
+		if stack != "" {
+			msg += "\n" + stack
+		}
+
 		if onCloudRun {
 			// this will automatically make an error in error reporting
 			std.Println(Entry{
