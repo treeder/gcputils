@@ -16,7 +16,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/logging"
-	"github.com/treeder/gotils"
+	"github.com/treeder/gotils/v2"
 	"google.golang.org/api/option"
 )
 

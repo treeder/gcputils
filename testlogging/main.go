@@ -9,7 +9,7 @@ import (
 	"github.com/rs/xid"
 	"github.com/treeder/gcputils"
 	"github.com/treeder/goapibase"
-	"github.com/treeder/gotils"
+	"github.com/treeder/gotils/v2"
 )
 
 func init() {
