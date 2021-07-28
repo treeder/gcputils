@@ -66,7 +66,8 @@ type Line interface {
 	Fielder
 	Printer
 	Leveler
-	LogBeta(ctx context.Context, severity, format string, a ...interface{})
+	Logf(ctx context.Context, severity, format string, a ...interface{})
+	Log(ctx context.Context, severity string, a ...interface{})
 }
 
 func init() {
@@ -278,10 +279,15 @@ func (l *line) Error() Line {
 }
 
 // gotils thing
-func (l *line) LogBeta(ctx context.Context, severity, format string, a ...interface{}) {
+func (l *line) Logf(ctx context.Context, severity, format string, a ...interface{}) {
 	l = l.clone()
 	l.sev = logging.ParseSeverity(severity)
 	printCtx(ctx, l, format, a...)
+}
+func (l *line) Log(ctx context.Context, severity string, a ...interface{}) {
+	l = l.clone()
+	l.sev = logging.ParseSeverity(severity)
+	printCtx(ctx, l, fmt.Sprintln(a...))
 }
 
 // sentinel error so we don't log the same thing twice
