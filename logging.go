@@ -1,7 +1,6 @@
 package gcputils
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 
 	"cloud.google.com/go/compute/metadata"
@@ -212,6 +210,7 @@ type line struct {
 	sev    logging.Severity
 	fields map[string]interface{}
 	trace  string
+	stack  []runtime.Frame
 }
 
 // F adds structured key/value pairs which will show up nicely in Cloud Logging.
@@ -377,7 +376,8 @@ func printCtx(ctx context.Context, line *line, format string, a ...interface{}) 
 				line = line.clone()
 				line.sev = logging.Error
 				// then we'll output all the good stuff
-				stack = stackToString(stacked.Stack())
+				line.stack = stacked.Stack()
+				stack = gotils.StackToString(line.stack)
 				line.fields = stacked.Fields()
 				if line.fields != nil {
 					tr := line.fields[traceHeader]
@@ -393,7 +393,7 @@ func printCtx(ctx context.Context, line *line, format string, a ...interface{}) 
 		// buf := make([]byte, 1<<16) // 65536 - seems kinda big?
 		// i := runtime.Stack(buf, false)
 		// stack = string(buf[0:i])
-		stack = takeStacktrace()
+		stack = gotils.StackToString(gotils.TakeStacktrace())
 	}
 	print3(ctx, line, fmt.Sprintf(format, a...), stack, "")
 }
@@ -417,7 +417,7 @@ func print(line *line, message, suffix string, args ...interface{}) {
 				line = line.clone()
 				line.sev = logging.Error
 				// then we'll output all the good stuff
-				stack = stackToString(stacked.Stack())
+				stack = gotils.StackToString(stacked.Stack())
 				line.fields = stacked.Fields()
 				if line.fields != nil {
 					tr := line.fields[traceHeader]
@@ -433,30 +433,9 @@ func print(line *line, message, suffix string, args ...interface{}) {
 		// buf := make([]byte, 1<<16) // 65536 - seems kinda big?
 		// i := runtime.Stack(buf, false)
 		// stack = string(buf[0:i])
-		stack = takeStacktrace()
+		stack = gotils.StackToString(gotils.TakeStacktrace())
 	}
 	print2(line, message, stack, suffix)
-}
-
-func stackToString(frames []runtime.Frame) string {
-	buffer := bytes.Buffer{}
-	buffer.WriteString("goroutine 1 [running]:\n")
-	for i, frame := range frames {
-		if i != 0 {
-			buffer.WriteRune('\n')
-		}
-		buffer.WriteString(frame.Function)
-		buffer.WriteRune('(')
-		buffer.WriteString(fmt.Sprintf("%v", frame.PC))
-		buffer.WriteRune(')')
-		buffer.WriteRune('\n')
-		buffer.WriteRune('\t')
-		buffer.WriteString(frame.File)
-		buffer.WriteRune(':')
-		buffer.WriteString(strconv.Itoa(frame.Line))
-		i++
-	}
-	return buffer.String()
 }
 
 func print2(line *line, message, stack, suffix string) {
@@ -503,7 +482,7 @@ func print3(ctx context.Context, line *line, message, stack, suffix string) {
 		if clients.logger == nil {
 			// InitLogging wasn't called, so printing to console
 			// todo: Maybe print a message that user should call InitLogging?
-			toConsole(line, message, stack, suffix)
+			toConsole(ctx, line, message)
 			return
 		}
 		payload := map[string]interface{}{"message": msg}
@@ -522,68 +501,11 @@ func print3(ctx context.Context, line *line, message, stack, suffix string) {
 		return
 	}
 	// now just regular console
-	toConsole(line, message, stack, suffix)
+	toConsole(ctx, line, message)
 }
 
-func toConsole(line *line, message, stack, suffix string) {
-	var msg strings.Builder
-	// add fields to msg
-	// msg.WriteString("\t")
-	msg.WriteString(strings.ToUpper(line.sev.String()))
-	msg.WriteString("\t")
-	msg.WriteString(message)
-	if line.fields != nil {
-		if len(line.fields) > 0 {
-			msg.WriteString("\n\t")
-			// msg.WriteString("\t[")
-			i := 0
-			for k, v := range line.fields {
-				if i > 0 {
-					msg.WriteString("\n\t")
-				}
-				fmt.Fprintf(&msg, "%v=%v", k, v)
-				i++
-			}
-			// msg.WriteString("]")
-		}
-	}
-	msg.WriteString("\n")
-	msg.WriteString(stack)
-	msg.WriteString(suffix)
-	s := msg.String()
-	if strings.HasSuffix(s, "\n") {
-		fmt.Print(msg.String())
-	} else {
-		fmt.Printf("%v\n", msg.String())
-	}
-}
-
-func takeStacktrace() string {
-	buffer := bytes.Buffer{} // switch to strings.Builder ?
-	buffer.WriteString("goroutine 1 [running]:\n")
-	pc := make([]uintptr, 25)
-	_ = runtime.Callers(2, pc)
-	i := 0
-	frames := runtime.CallersFrames(pc)
-	for frame, more := frames.Next(); more; frame, more = frames.Next() {
-		if shouldSkip(frame.Function) {
-			continue
-		}
-		if i != 0 {
-			buffer.WriteRune('\n')
-		}
-		i++
-		buffer.WriteString(frame.Function)
-		buffer.WriteRune('(')
-		buffer.WriteString(fmt.Sprintf("%v", frame.PC))
-		buffer.WriteRune(')')
-		buffer.WriteRune('\n')
-		buffer.WriteRune('\t')
-		buffer.WriteString(frame.File)
-		buffer.WriteRune(':')
-		buffer.WriteString(strconv.Itoa(frame.Line))
-	}
-	return buffer.String()
+func toConsole(ctx context.Context, line *line, message string) {
+	gotils.PrintMFS(ctx, line.sev.String(), message, line.fields, line.stack)
 }
 
 func shouldSkip(s string) bool {
