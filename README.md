@@ -23,31 +23,24 @@ The logging stuff in here handles all those cases.
 
 While I was at it, I thought I'd try to make it more stdlib'ish. Here's how to use it.
 
+This is a `Loggable` for [treeder/gotils](https://github.com/treeder/gotils/) so you really just have to have gotils use this:
+
+On startup:
+
+```go
+gotils.SetLoggable(gcputils.NewLogger())
+```
+
+Then usage is just gotils usage:
+
 ```go
 // basic log message
-gotils.Info().Println("hi")
+gotils.L(ctx).Info().Println("hi")
 // add fields
 l := gotils.With("abc", 123)
 // then anytime you write a log, those structured fields will be output in the proper format for Google Cloud, or human
 // readable when developing locally. 
-l.Error().Printf("some error:" err)
+gotils.L(ctx).Error().Printf("some error: %v", err)
+// To keep stack traces and have those logged to google cloud logging, just use this whenever you return an error:
+return gotils.C(ctx).Errorf("some error: %w", err)
 ```
-
-If you want to pass it around in your context:
-
-```go
-// at startup:
-l := gcputils.Info()
-ctx = context.WithValue(ctx, "logger", l)
-
-// then add a couple helper functions:
-func L(ctx context.Context) gcputils.Line {
-	return ctx.Value("logger").(gcputils.Line)
-}
-
-// Add fields to the context
-func LWith(ctx context.Context, key string, value interface{}) context.Context {
-	return context.WithValue(ctx, "logger", L(ctx).With(key, value))
-}
-```
-
